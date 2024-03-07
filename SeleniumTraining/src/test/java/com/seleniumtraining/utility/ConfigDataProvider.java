@@ -32,4 +32,12 @@ public class ConfigDataProvider {
 	public String getURL() {
 		return pro.getProperty("testURL");
 	}
+	
+	public String getUsername() {
+		return pro.getProperty("username");
+	}
+	
+	public String getPassword() {
+		return pro.getProperty("password");
+	}
 }
