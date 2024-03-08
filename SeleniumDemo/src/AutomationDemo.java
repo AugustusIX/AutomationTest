@@ -14,8 +14,10 @@ import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import java.time.Duration;
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.net.ServerSocket;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -23,12 +25,21 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Properties;
 
 @SuppressWarnings("unused")
 public class AutomationDemo {
 	public static WebDriver driver;
 	public static String debuggerAdd;
+	
+	public static String schema1 = "NPI";
+	public static String schema2 = "NPI (no sequence ID)";
+	public static String schema3 = "NPI (Old)";
+	public static String schema4 = "Sequence ID test";
+	public static String schema5 = "ZTT";
+	public static String schema6 = "ZTT (no sequence ID)";
+	public static String schema7 = "ZTT (Old)";
 	
 	private static final StringBuilder sb = new StringBuilder();
 	
@@ -64,8 +75,9 @@ public class AutomationDemo {
         // EDIT this per run
         String dataset_title = "ZTT FileUp" + " " + getDate();
         String dataset_desc = "Description here";
-        String dataset_type = "npi";
-        String csvFile = "Territory test V3" + ".csv";
+        String dataset_type = schema1;
+        String fileName = "Territory test V3";
+        String csvFile = fileName + ".csv";
         // END of data initialization
         
         // EXECUTE ACTIONS BELOW
@@ -77,8 +89,10 @@ public class AutomationDemo {
 //        regularLogin(username, password);
         
         //create dataset via File Upload
-		goToMain(driver, p3);
-        fileUpload(driver, dataset_title, dataset_desc, dataset_type, ztt_path + csvFile);
+//        fileUpload(dataset_title, dataset_desc, dataset_type, ztt_path + csvFile);
+		
+		//create dataset via Cohort Definition
+		viaCohortDef(dataset_title, dataset_desc);
         
 //        waitForPageTitle(driver, "Dataset Manager - MapLab");
         
@@ -205,7 +219,8 @@ public class AutomationDemo {
         return driver;
 	}
 	
-	private static void fileUpload(WebDriver wDriver, String dsName, String dsDesc, String type, String filePath) throws InterruptedException {
+	private static void fileUpload(String name, String desc, String type, String filePath) throws InterruptedException {
+		driver.findElement(By.xpath("//a[@data-testid='appbar.navigation.datasets']")).click(); //Go to Datasets page
 		driver.findElement(By.xpath("//button[@data-testid='dashboard.NewDatasetButton']")).click(); //click Create Dataset dropdown
 		driver.findElement(By.xpath("//li[@data-testid='dashboard.newDatasetButtonMenu.import_data']")).click(); //choose Import Data
 		Thread.sleep(2000);
@@ -213,56 +228,63 @@ public class AutomationDemo {
 //		waitForPageTitle(wDriver, "File Upload - MapLab");
 //		System.out.println("File upload page loaded");
 		
-		boolean draft = driver.findElement(By.xpath("//div[@data-testid='modal']")).isDisplayed();
+		draftModalNew();
 		
-		if (draft) {
-			driver.findElement(By.xpath("//div[@data-testid='modal.actions']//button")).click();
-//			fileUp(wDriver, dsName, dsDesc, type, filePath);
-		} else {
-//			fileUp(wDriver, dsName, dsDesc, type, filePath);
+//		fileUp(wDriver, dsName, dsDesc, type, filePath);
+		fileUpNameDesc(name, desc);
+		chooseSchema(type);
+		dsUploadFile(filePath);
+		mapSchema(type);
+		
+		driver.findElement(By.xpath("//button[@data-testid='file-upload.FileUpload.generate-dataset']")).click();
+		
+		//START: Check if partial Upload Modal exists
+		boolean partialUpModal = driver.findElements(By.xpath("//div[@data-testid='file-upload.components.PartialProceedModal']")).size() > 0;
+		
+		if (!partialUpModal) {
+				driver.findElement(By.xpath("//input[@value='option2']")).click();
+				Thread.sleep(2000);
+				driver.findElement(By.xpath("//div[@data-testid=''modal.actions]//button[contains(text(), 'Skip rows')]")).click();
 		}
+		//END: Check if partial Upload Modal exists
 	}
 	
-	private static void fileUp(WebDriver wDriver, String dsName, String dsDesc, String type, String filePath) throws InterruptedException {
-		String st1 = "NPI";
-        String st2 = "NPI (no sequence ID)";
-        String st3 = "NPI (Old)";
-        String st4 = "Sequence ID test";
-        String st5 = "ZTT";
-        String st6 = "ZTT (no sequence ID)";
-        String st7 = "ZTT (Old)";
-        
+	// START: FOR fileUpload method
+	private static void fileUpNameDesc (String dsName, String dsDesc) throws InterruptedException {
 		driver.findElement(By.name("datasetName")).sendKeys(dsName);
-		System.out.println("Dataset name inputted");
-		driver.findElement(By.xpath("//*[@id=\"root\"]/div/div/form/nav/div/div[2]/div[1]/div[2]/div/div/p/span")).click();
+		Thread.sleep(2000);
+		driver.findElement(By.xpath("//button[@data-testid='inline-editing.edit']")).click();
+		Thread.sleep(2000);
 		driver.findElement(By.xpath("//div[@data-testid='PageHeader.description']")).click();
+		Thread.sleep(2000);
 		driver.findElement(By.tagName("textarea")).sendKeys(dsDesc);
-		System.out.println("Dataset description inputted");
 		Thread.sleep(2000);
 		driver.findElement(By.xpath("//button[@data-testid='inline-editing.submit']")).click();
-		System.out.println("Dataset description saved");
+		Thread.sleep(2000);
+	}
+	
+	private static void chooseSchema(String type) throws InterruptedException {
 		driver.findElement(By.xpath("//div[@data-testid='file-upload.components.DatasetSchema.select']")).click();
 		System.out.println("Select schema dropdown clicked");
 		
-		if (st1.equals(type)) {
+		if (schema1.equals(type)) {
 			driver.findElement(By.xpath("//*[@id=\"menu-datasetSchema\"]/div[3]/ul/li[1]")).click();
 			System.out.println("if npi executed");
-		} else if (st2.equals(type)) {
+		} else if (schema2.equals(type)) {
 			driver.findElement(By.xpath("//*[@id=\"menu-datasetSchema\"]/div[3]/ul/li[2]")).click();
 			System.out.println("else if npi old executed");
-		} else if (st3.equals(type)) {
+		} else if (schema3.equals(type)) {
 			driver.findElement(By.xpath("//*[@id=\"menu-datasetSchema\"]/div[3]/ul/li[3]")).click();
 			System.out.println("else if sequence id executed");
-		} else if (st4.equals(type)) {
+		} else if (schema4.equals(type)) {
 			driver.findElement(By.xpath("//*[@id=\"menu-datasetSchema\"]/div[3]/ul/li[4]")).click();
-			System.out.println("else if sequence id executed");
-		}else if (st5.equals(type)) {
+		} else if (schema5.equals(type)) {
 			driver.findElement(By.xpath("//*[@id=\"menu-datasetSchema\"]/div[3]/ul/li[5]")).click();
 			System.out.println("else if ztt executed");
-		} else if (st6.equals(type)) {
+		} else if (schema6.equals(type)) {
 			driver.findElement(By.xpath("//*[@id=\"menu-datasetSchema\"]/div[3]/ul/li[6]")).click();
 			System.out.println("else if ztt old executed");
-		} else if (st7.equals(type)) {
+		} else if (schema7.equals(type)) {
 			driver.findElement(By.xpath("//*[@id=\"menu-datasetSchema\"]/div[3]/ul/li[7]")).click();
 			System.out.println("else if ztt old executed");
 		} else {
@@ -273,6 +295,9 @@ public class AutomationDemo {
 		driver.findElement(By.xpath("//div[@data-testid='modal.actions']//button")).click();
 		System.out.println("Modal accept button clicked");
 		Thread.sleep(2000);
+	}
+	
+	private static void dsUploadFile (String filePath) throws InterruptedException {
 		driver.findElement(By.xpath("//div[@data-testid='uploader.dropzone']//input[@type='file']")).sendKeys(filePath);
 		System.out.println("file selected");
 		Thread.sleep(2000);
@@ -281,9 +306,10 @@ public class AutomationDemo {
 		
 		WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
 		wait.until(ExpectedConditions.textToBe(uploadStatus, "Complete"));
-		
-		// Find the dropdown button using the modified XPath expression
-        WebElement dropdownButton = driver.findElement(By.xpath("//div[@data-testid='file-upload.FileUpload.select']//div[@role='button']"));
+	}
+	
+	private static void mapSchema (String type) throws InterruptedException {
+		WebElement dropdownButton = driver.findElement(By.xpath("//div[@data-testid='file-upload.FileUpload.select']//div[@role='button']"));
 
         // Scroll down the page
         ((JavascriptExecutor) driver).executeScript("window.scrollBy(0,250)");
@@ -297,10 +323,11 @@ public class AutomationDemo {
 		
 		Thread.sleep(2000);
 
-		if ("npi".equals(type) || "npi no seq".equals(type) || "npi old".equals(type) || "sequence id".equals(type)) {
+		if (containsText(type, "npi") == true ||  "sequence id".equals(type)) {
 			driver.findElement(By.xpath("//div[contains(@data-field, 'npi')]//div[@data-testid='file-upload.FileUpload.select']")).click();
 			driver.findElement(By.xpath("//div[contains(@data-field, 'npi')]//div[@data-testid='file-upload.FileUpload.select']//li[@data-value='npi']")).click();
-		} else if ("ztt".equals(type) || "ztt no seq".equals(type) || "ztt old".equals(type)) {
+		} else if (containsText(type, "ztt") == true) {
+//			TO EDIT (unable to proceed due to select schema error) 03/08/2024
 			driver.findElement(By.xpath("//div[contains(@data-testid, 'ZIP')]//div[@data-testid='file-upload.FileUpload.select']")).click();
 			driver.findElement(By.xpath("//div[contains(@data-testid, 'ZIP')]//div[@data-testid='file-upload.FileUpload.select']//li[@data-value='zip']")).click();
 			driver.findElement(By.xpath("//div[contains(@data-testid, 'Territory')]//div[@data-testid='file-upload.FileUpload.select']")).click();
@@ -310,28 +337,69 @@ public class AutomationDemo {
 		}
 		
 		Thread.sleep(3000);
-		driver.findElement(By.xpath("//button[@data-testid='file-upload.FileUpload.generate-dataset']")).click();
-		
-		List<WebElement> fileupWarningModal = driver.findElements(By.xpath("//div[@data-testid='file-upload.components.PartialProceedModal']"));
-		if (!fileupWarningModal.isEmpty()) {
-			driver.findElement(By.xpath("//input[@value='option2']")).click();
-			Thread.sleep(2000);
-			driver.findElement(By.xpath("//div[@data-testid=''modal.actions]//button[contains(text(), 'Skip rows')]")).click();
-		}
+	}
+	// END: FOR fileUpload method
+	
+	// To click 'Start new [resource type]' from draft modal
+	private static void draftModalNew () throws InterruptedException {
+//		boolean draft = driver.findElement(By.xpath("//div[@data-testid='modal']")).isDisplayed();
+//		
+//		if (draft == true) {
+//			try {
+//				Thread.sleep(2000);
+//				driver.findElement(By.xpath("//div[@data-testid='modal.actions']//button")).click();
+//			} catch (InterruptedException e) {
+//				System.out.println("Modal not found");
+//			}
+//		}
+		boolean draft = driver.findElements(By.xpath("//div[@data-testid='modal']")).size() > 0;
+
+        if (draft) {
+            Thread.sleep(2000);
+			driver.findElement(By.xpath("//div[@data-testid='modal.actions']//button")).click();
+        }
 	}
 	
-	private static void viaCohortDef (WebDriver wDriver) {
+	private static void viaCohortDef (String dName, String dDesc) throws InterruptedException {
+		driver.findElement(By.xpath("//a[@data-testid='appbar.navigation.datasets']")).click(); //Go to Datasets page
+		Thread.sleep(2000);
 		driver.findElement(By.xpath("//button[@data-testid='dashboard.NewDatasetButton']")).click(); //click Create Dataset dropdown
-		System.out.println("Created Dataset dropdown clicked");
+		Thread.sleep(2000);
 		
-		driver.findElement(By.xpath("//li[@data-testid='dashboard.newDatasetButtonMenu.use-cohort-definition']")); //choose Use Cohort Definition
-		waitForPageTitle(wDriver, "Select cohort - MapLab");
+		driver.findElement(By.xpath("//li[@data-testid='dashboard.newDatasetButtonMenu.use-cohort-definition']")).click(); //choose Use Cohort Definition
+		waitForPageTitle(driver, "Select cohort - MapLab");
+		
+		draftModalNew();
+		
+//		dsbNameDesc(dName, dDesc);
+		dsCohortPicker();
 	}
 	
-	private static void fileupChangeFile(String filePath) {
-		driver.findElement(By.xpath("//button[@data-testid='file-upload.components.FileChanger.change-file']//input[@type='file']")).sendKeys(filePath);		
+	private static void dsbNameDesc (String dsName, String dsDesc) throws InterruptedException {
+		driver.findElement(By.xpath("//div[@data-testid='PageHeader.title']//div//div[@data-testid='text-field']//div")).click();
+		Thread.sleep(1000);
+		driver.findElement(By.xpath("//input[@aria-label='Name']")).sendKeys(dsName);
+		Thread.sleep(2000);
+		driver.findElement(By.xpath("//button[@data-testid='inline-editing.edit']")).click();
+		Thread.sleep(2000);
+		driver.findElement(By.xpath("//div[@data-testid='PageHeader.description']")).click();
+		Thread.sleep(2000);
+		driver.findElement(By.xpath("//div[@data-testid='PageHeader.description']//div//div//div//textarea")).sendKeys(dsDesc);
+		Thread.sleep(2000);
+		driver.findElement(By.xpath("//button[@data-testid='inline-editing.submit']")).click();
+		Thread.sleep(2000);
 	}
 	
+	private static void dsCohortPicker() throws InterruptedException {
+		driver.findElement(By.xpath("//div[@data-testid='dataset-builder.steps.PickDefinition.CohortDefinitionPicker']//div[@data-testid='text-field']//div//div")).click();
+		driver.findElement(By.xpath("//div[@data-testid='dataset-builder.steps.PickDefinition.CohortDefinitionPicker']//div[@data-testid='text-field']//div//input")).click();
+		Thread.sleep(2000);
+		
+		int randomNumber = (int)(Math.random() * 92);
+		driver.findElement(By.xpath("//div[@role='presentation']//div//ul//li[@data-testid='pickerlistitem' and @data-option-index='" + randomNumber +"']//div")).click();
+	}
+	
+	// TO BE CHECKED after schema mapping bug fix. This is a duplicate of chooseSchema method that contains the accepting the modal
 	private static void fileUpChangeSchema(String type) throws InterruptedException {
 		driver.findElement(By.xpath("//div[@data-testid='file-upload.components.DatasetSchema.select']")).click();
 		System.out.println("Select schema dropdown clicked");
@@ -386,6 +454,27 @@ public class AutomationDemo {
         } catch (IOException e) {
             return false;
         }
+    }
+    
+    public static boolean containsText(String src, String what) {
+        final int length = what.length();
+        if (length == 0)
+            return true; // Empty string is contained
+            
+        final char firstLo = Character.toLowerCase(what.charAt(0));
+        final char firstUp = Character.toUpperCase(what.charAt(0));
+        
+        for (int i = src.length() - length; i >= 0; i--) {
+            // Quick check before calling the more expensive regionMatches() method:
+            final char ch = src.charAt(i);
+            if (ch != firstLo && ch != firstUp)
+                continue;
+            
+            if (src.regionMatches(true, i, what, 0, length))
+                return true;
+        }
+        
+        return false;
     }
     
 	private static String getDate() {
